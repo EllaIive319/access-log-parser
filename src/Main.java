@@ -4,7 +4,7 @@ import java.util.*;
 import static java.lang.Integer.parseInt;
 import static java.lang.Math.abs;
 
-//Курсовой проект. Задание #1 по теме "Collections"
+//Курсовой проект. Задание #2 по теме "Collections"
 class LocalDateTime{
     List<Integer> time = new ArrayList<Integer>();
     List<String> dateTime = new ArrayList<String>();
@@ -190,7 +190,9 @@ class Statistics {
     LocalDateTime minTime;
     LocalDateTime maxTime;
     HashSet<String> addr = new HashSet<String>();
+    HashSet<String> noAddr = new HashSet<String>();
     HashMap<String, Integer> setOfOperationSys = new HashMap<String, Integer>();
+    HashMap<String, Integer> setOfbrowser = new HashMap<String, Integer>();
 
     public Statistics(){
         this.totalTraffic = 0;
@@ -207,17 +209,27 @@ class Statistics {
 
         if (LE.getResponseCode() == 200) // список всех существующих страниц
             this.addr.add(LE.getPath());
+        if (LE.getResponseCode() == 404) // список всех  не существующих страниц
+            this.noAddr.add(LE.getPath());
 
         this.setOfOperationSys.putIfAbsent(LE.getAgent().operationSystem, 1);
         if (this.setOfOperationSys.get(LE.getAgent().operationSystem) > 0)
             this.setOfOperationSys.put(LE.getAgent().operationSystem, this.setOfOperationSys.get(LE.getAgent().operationSystem) + 1);
 
+        this.setOfbrowser.putIfAbsent(LE.getAgent().browser, 1);
+        if (this.setOfbrowser.get(LE.getAgent().browser) > 0)
+            this.setOfbrowser.put(LE.getAgent().browser, this.setOfbrowser.get(LE.getAgent().browser) + 1);
+
     }
 
     public HashSet<String> getExistsPages(){ //возвращаем список существующих страниц
         return this.addr;
-    }
 
+    }
+    public HashSet<String> getNowExistsPages(){ //возвращаем список не существующих страниц
+        return this.noAddr;
+
+    }
     public  HashMap<String, Double> getOSRatio(){ //возвращаем список доли ОС
         double sum = 0;
         HashMap<String, Double> ratioSet = new HashMap<String, Double>();
@@ -228,6 +240,17 @@ class Statistics {
             ratioSet.putIfAbsent(s, (double)this.setOfOperationSys.get(s)/sum);
         }
         return ratioSet;
+    }
+    public  HashMap<String, Double> getBRatio(){ //возвращаем список доли браузера
+        double sum = 0;
+        HashMap<String, Double> ratioSetB = new HashMap<String, Double>();
+        for (double val : this.setOfbrowser.values()) {
+            sum += val;
+        }
+        for (String s: this.setOfbrowser.keySet()){
+            ratioSetB.putIfAbsent(s, (double)this.setOfbrowser.get(s)/sum);
+        }
+        return ratioSetB;
     }
 
     public double getTrafficRate() {
