@@ -4,8 +4,7 @@ import java.util.*;
 import static java.lang.Integer.parseInt;
 import static java.lang.Math.abs;
 
-//C:\Course\access.log
-// Введение в ООП
+//Курсовой проект. Задание #1 по теме "Collections"
 class LocalDateTime{
     List<Integer> time = new ArrayList<Integer>();
     List<String> dateTime = new ArrayList<String>();
@@ -31,7 +30,7 @@ class LocalDateTime{
 
     }
     public String toString(){
-        return this.time.toString() + " " + dateTime;
+        return this.time + " " + dateTime;
     }
 }
 
@@ -60,7 +59,7 @@ class UserAgent {
 
         firstBrackets = firstBrackets.replaceAll(" ","");
         String[] parts = firstBrackets.split(";");
-        if (parts.length >= 1)
+        if (parts.length >= 2)
             this.operationSystem = parts[0];
         else
             this.operationSystem = "-";
@@ -190,6 +189,8 @@ class Statistics {
     long totalTraffic;
     LocalDateTime minTime;
     LocalDateTime maxTime;
+    HashSet<String> addr = new HashSet<String>();
+    HashMap<String, Integer> setOfOperationSys = new HashMap<String, Integer>();
 
     public Statistics(){
         this.totalTraffic = 0;
@@ -201,13 +202,37 @@ class Statistics {
         this.totalTraffic += LE.getResponseSize();
         if ((this.minTime.time.get(0) > LE.getTime().time.get(0)) && (parseInt(this.minTime.dateTime.get(0)) >= parseInt(LE.getTime().dateTime.get(0))))
             this.minTime = LE.getTime();
-        if ((this.maxTime.time.get(0) < LE.getTime().time.get(0)) && (parseInt(this.maxTime.dateTime.get(0)) <= parseInt(LE.getTime().dateTime.get(0))))
-            this.maxTime = LE.getTime();
+        if ((this.maxTime.time.get(0) < LE.getTime().time.get(0))|| (parseInt(this.maxTime.dateTime.get(0)) < parseInt(LE.getTime().dateTime.get(0))))
+        this.maxTime = LE.getTime();
+
+        if (LE.getResponseCode() == 200) // список всех существующих страниц
+            this.addr.add(LE.getPath());
+
+        this.setOfOperationSys.putIfAbsent(LE.getAgent().operationSystem, 1);
+        if (this.setOfOperationSys.get(LE.getAgent().operationSystem) > 0)
+            this.setOfOperationSys.put(LE.getAgent().operationSystem, this.setOfOperationSys.get(LE.getAgent().operationSystem) + 1);
+
+    }
+
+    public HashSet<String> getExistsPages(){ //возвращаем список существующих страниц
+        return this.addr;
+    }
+
+    public  HashMap<String, Double> getOSRatio(){ //возвращаем список доли ОС
+        double sum = 0;
+        HashMap<String, Double> ratioSet = new HashMap<String, Double>();
+        for (double val : this.setOfOperationSys.values()) {
+            sum += val;
+        }
+        for (String s: this.setOfOperationSys.keySet()){
+            ratioSet.putIfAbsent(s, (double)this.setOfOperationSys.get(s)/sum);
+        }
+        return ratioSet;
     }
 
     public double getTrafficRate() {
         double hours = abs(24*(parseInt(this.maxTime.dateTime.get(0)) - parseInt(this.minTime.dateTime.get(0))) - (this.maxTime.time.get(0) - this.minTime.time.get(0)));
-        return hours/this.totalTraffic;
+        return this.totalTraffic/hours;
     }
 }
 public class Main
@@ -221,7 +246,7 @@ public class Main
             boolean fileexists = file.exists();
             boolean isDirectory = file.isDirectory();
 
-            if ((!fileexists) || (isDirectory)) {
+            if ((!fileexists)|| (isDirectory)) {
                 System.out.println("Файл несуществует или указанный путь - путь к папкке.");
                 continue;
             } else {
@@ -230,7 +255,6 @@ public class Main
                 break;
             }
         }
-
         BufferedReader reader;
         try {
             FileReader fileReader = new FileReader(path);
@@ -238,7 +262,6 @@ public class Main
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
-
 
         String line;
         List<LogEntry> LE = new ArrayList<LogEntry>();
@@ -251,15 +274,11 @@ public class Main
                 LogEntry LElement = new LogEntry(line);
                 LE.add(i, LElement);
                 stat.addEntry(LElement);
-                //System.out.println(LElement.getAgent());
                 i++;
-                //break;
             }
 
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.out.println(stat.getTrafficRate());
-
     }
 }
