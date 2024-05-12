@@ -1,10 +1,12 @@
 import java.io.*;
 import java.util.*;
+import java.util.stream.DoubleStream;
 
 import static java.lang.Integer.parseInt;
+import static java.lang.Integer.sum;
 import static java.lang.Math.abs;
 
-//Курсовой проект. Задание #2 по теме "Collections"
+//Курсовой проект. Задание #1 по теме "Stream API"
 class LocalDateTime{
     List<Integer> time = new ArrayList<Integer>();
     List<String> dateTime = new ArrayList<String>();
@@ -37,6 +39,7 @@ class LocalDateTime{
 class UserAgent {
     String operationSystem = "";
     String browser = "";
+    String secondPart="";
 
     public UserAgent(String line){
         String firstBrackets = "";
@@ -59,10 +62,16 @@ class UserAgent {
 
         firstBrackets = firstBrackets.replaceAll(" ","");
         String[] parts = firstBrackets.split(";");
-        if (parts.length >= 2)
+        if (parts.length >= 2) {
             this.operationSystem = parts[0];
-        else
+            this.secondPart = parts[1];
+        } else {
             this.operationSystem = "-";
+            this.secondPart = "-";
+        }
+    }
+    public boolean isBot(){
+        return secondPart.contains("bot") || secondPart.contains("Bot");
     }
     public String toString(){
         return this.browser+ " " + this.operationSystem;
@@ -154,6 +163,7 @@ class LogEntry {
         this.path = parseLine[6];
         this.agent = new UserAgent(parseLine[7]);
     }
+
     public String getIpAddr() {
         return this.ipAddr;
     }
@@ -186,50 +196,58 @@ class LogEntry {
 }
 
 class Statistics {
+    double countEnter = 0;
+    double countFailRequest = 0;
+    ArrayList<Double> counters = new ArrayList<Double>();
     long totalTraffic;
     LocalDateTime minTime;
     LocalDateTime maxTime;
     HashSet<String> addr = new HashSet<String>();
-    HashSet<String> noAddr = new HashSet<String>();
     HashMap<String, Integer> setOfOperationSys = new HashMap<String, Integer>();
-    HashMap<String, Integer> setOfbrowser = new HashMap<String, Integer>();
+    HashSet<String> ipAddr = new HashSet<String>();
+    LocalDateTime previousHour;
+    LocalDateTime currentHour;
 
     public Statistics(){
         this.totalTraffic = 0;
+        this.currentHour = new LocalDateTime("25/Sep/2022:06:25:04 +0300");
         this.maxTime = new LocalDateTime("25/Sep/2022:06:25:04 +0300");
         this.minTime = new LocalDateTime("25/Sep/2022:06:25:04 +0300");
     }
 
-    public void addEntry(LogEntry LE){
+    public void addEntry(LogEntry LE){ // Как улучшить?
+        this.previousHour = this.currentHour;
+        this.currentHour = LE.getTime();
+
         this.totalTraffic += LE.getResponseSize();
         if ((this.minTime.time.get(0) > LE.getTime().time.get(0)) && (parseInt(this.minTime.dateTime.get(0)) >= parseInt(LE.getTime().dateTime.get(0))))
             this.minTime = LE.getTime();
-        if ((this.maxTime.time.get(0) < LE.getTime().time.get(0))|| (parseInt(this.maxTime.dateTime.get(0)) < parseInt(LE.getTime().dateTime.get(0))))
-        this.maxTime = LE.getTime();
+        if ((this.maxTime.time.get(0) < LE.getTime().time.get(0)) || (parseInt(this.maxTime.dateTime.get(0)) < parseInt(LE.getTime().dateTime.get(0))))
+            this.maxTime = LE.getTime();
 
+        if (!LE.getAgent().isBot()) { //Проверяем не бот ли, после этого считаем посещения
+            this.countEnter++;
+            this.ipAddr.add(LE.getIpAddr());
+        }
         if (LE.getResponseCode() == 200) // список всех существующих страниц
             this.addr.add(LE.getPath());
-        if (LE.getResponseCode() == 404) // список всех  не существующих страниц
-            this.noAddr.add(LE.getPath());
+
+        if (Integer.toString(LE.getResponseCode()).matches("[4-5].*$"))
+            this.countFailRequest++;
+
 
         this.setOfOperationSys.putIfAbsent(LE.getAgent().operationSystem, 1);
         if (this.setOfOperationSys.get(LE.getAgent().operationSystem) > 0)
             this.setOfOperationSys.put(LE.getAgent().operationSystem, this.setOfOperationSys.get(LE.getAgent().operationSystem) + 1);
 
-        this.setOfbrowser.putIfAbsent(LE.getAgent().browser, 1);
-        if (this.setOfbrowser.get(LE.getAgent().browser) > 0)
-            this.setOfbrowser.put(LE.getAgent().browser, this.setOfbrowser.get(LE.getAgent().browser) + 1);
+
 
     }
 
     public HashSet<String> getExistsPages(){ //возвращаем список существующих страниц
         return this.addr;
-
     }
-    public HashSet<String> getNowExistsPages(){ //возвращаем список не существующих страниц
-        return this.noAddr;
 
-    }
     public  HashMap<String, Double> getOSRatio(){ //возвращаем список доли ОС
         double sum = 0;
         HashMap<String, Double> ratioSet = new HashMap<String, Double>();
@@ -241,16 +259,19 @@ class Statistics {
         }
         return ratioSet;
     }
-    public  HashMap<String, Double> getBRatio(){ //возвращаем список доли браузера
-        double sum = 0;
-        HashMap<String, Double> ratioSetB = new HashMap<String, Double>();
-        for (double val : this.setOfbrowser.values()) {
-            sum += val;
-        }
-        for (String s: this.setOfbrowser.keySet()){
-            ratioSetB.putIfAbsent(s, (double)this.setOfbrowser.get(s)/sum);
-        }
-        return ratioSetB;
+
+    public double countAverage() { //Среднее число пользователей в час
+        double hours = abs(24*(parseInt(this.maxTime.dateTime.get(0)) - parseInt(this.minTime.dateTime.get(0))) - (this.maxTime.time.get(0) - this.minTime.time.get(0)));
+        return this.countEnter/hours;
+    }
+
+    public double countAverageFails(){ //Среднее число ошибок в час
+        double hours = abs(24*(parseInt(this.maxTime.dateTime.get(0)) - parseInt(this.minTime.dateTime.get(0))) - (this.maxTime.time.get(0) - this.minTime.time.get(0)));
+        return this.countFailRequest/hours;
+    }
+
+    public double countAverageUnique(){ //Среднее число запросов от одного пользователя
+        return this.countEnter/this.ipAddr.size();
     }
 
     public double getTrafficRate() {
@@ -269,7 +290,7 @@ public class Main
             boolean fileexists = file.exists();
             boolean isDirectory = file.isDirectory();
 
-            if ((!fileexists)|| (isDirectory)) {
+            if ((!fileexists) || (isDirectory)) {
                 System.out.println("Файл несуществует или указанный путь - путь к папкке.");
                 continue;
             } else {
@@ -278,6 +299,7 @@ public class Main
                 break;
             }
         }
+
         BufferedReader reader;
         try {
             FileReader fileReader = new FileReader(path);
@@ -285,6 +307,7 @@ public class Main
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }
+
 
         String line;
         List<LogEntry> LE = new ArrayList<LogEntry>();
@@ -298,10 +321,13 @@ public class Main
                 LE.add(i, LElement);
                 stat.addEntry(LElement);
                 i++;
+
             }
 
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        System.out.println(stat.countAverageFails());
+
     }
 }
