@@ -6,7 +6,8 @@ import static java.lang.Integer.parseInt;
 import static java.lang.Integer.sum;
 import static java.lang.Math.abs;
 
-//Курсовой проект. Задание #1 по теме "Stream API"
+//Курсовой проект. Задание #2 по теме "Stream API"
+
 class LocalDateTime{
     List<Integer> time = new ArrayList<Integer>();
     List<String> dateTime = new ArrayList<String>();
@@ -157,10 +158,10 @@ class LogEntry {
         this.ipAddr = parseLine[0];
         this.time = new LocalDateTime(parseLine[1]);
         this.method = HttpMethod.valueOf(parseLine[2]);
-        this.referer = parseLine[3];
+        this.referer = parseLine[6];
         this.responseCode = parseInt(parseLine[4]);
         this.responseSize = parseInt(parseLine[5]);
-        this.path = parseLine[6];
+        this.path = parseLine[3];
         this.agent = new UserAgent(parseLine[7]);
     }
 
@@ -204,20 +205,24 @@ class Statistics {
     LocalDateTime maxTime;
     HashSet<String> addr = new HashSet<String>();
     HashMap<String, Integer> setOfOperationSys = new HashMap<String, Integer>();
-    HashSet<String> ipAddr = new HashSet<String>();
-    LocalDateTime previousHour;
-    LocalDateTime currentHour;
+    HashMap<String, Integer> ipAddr = new HashMap<String, Integer>();
+    HashMap<Integer,Integer> second = new HashMap<>();
+    HashSet<String> domens = new HashSet<>();
+    int timeSeconds;
+    int countSeconds=0;
 
     public Statistics(){
         this.totalTraffic = 0;
-        this.currentHour = new LocalDateTime("25/Sep/2022:06:25:04 +0300");
+
         this.maxTime = new LocalDateTime("25/Sep/2022:06:25:04 +0300");
         this.minTime = new LocalDateTime("25/Sep/2022:06:25:04 +0300");
     }
 
-    public void addEntry(LogEntry LE){ // Как улучшить?
-        this.previousHour = this.currentHour;
-        this.currentHour = LE.getTime();
+    public void addEntry(LogEntry LE){
+        if ((this.timeSeconds != LE.getTime().time.get(2))||(this.countSeconds == 0)){
+            this.timeSeconds = LE.getTime().time.get(2);
+            this.countSeconds++;
+        }
 
         this.totalTraffic += LE.getResponseSize();
         if ((this.minTime.time.get(0) > LE.getTime().time.get(0)) && (parseInt(this.minTime.dateTime.get(0)) >= parseInt(LE.getTime().dateTime.get(0))))
@@ -227,7 +232,10 @@ class Statistics {
 
         if (!LE.getAgent().isBot()) { //Проверяем не бот ли, после этого считаем посещения
             this.countEnter++;
-            this.ipAddr.add(LE.getIpAddr());
+            if (this.ipAddr.get(LE.getIpAddr()) > 0)
+                this.ipAddr.put(LE.getIpAddr(), this.ipAddr.get(LE.getIpAddr()) + 1);
+            this.ipAddr.putIfAbsent(LE.getIpAddr(),1);
+
         }
         if (LE.getResponseCode() == 200) // список всех существующих страниц
             this.addr.add(LE.getPath());
@@ -236,11 +244,31 @@ class Statistics {
             this.countFailRequest++;
 
 
-        this.setOfOperationSys.putIfAbsent(LE.getAgent().operationSystem, 1);
-        if (this.setOfOperationSys.get(LE.getAgent().operationSystem) > 0)
+        this.setOfOperationSys.putIfAbsent(LE.getAgent().operationSystem, 0);
+        if (this.setOfOperationSys.get(LE.getAgent().operationSystem) >= 0)
             this.setOfOperationSys.put(LE.getAgent().operationSystem, this.setOfOperationSys.get(LE.getAgent().operationSystem) + 1);
 
+        if (!Objects.equals(LE.getReferer(), "-")) {
+            char[] temp = LE.getReferer().toCharArray();
+            int i = 0;
+            String domenStr = null;
+            try {
+                while (temp[i] != '/') {
+                    i++;
+                }
+                i += 2;
+                domenStr = "";
 
+                while (temp[i] != '/') {
+                    domenStr += temp[i];
+                    i++;
+                }
+            } catch (ArrayIndexOutOfBoundsException e) {
+                domenStr = null;
+            }
+            if (domenStr != null)
+                this.domens.add(domenStr);
+        }
 
     }
 
@@ -273,7 +301,32 @@ class Statistics {
     public double countAverageUnique(){ //Среднее число запросов от одного пользователя
         return this.countEnter/this.ipAddr.size();
     }
+    public int MaximumUnique() {
+        int maximum=0;
+        for (String key : this.ipAddr.keySet()){
 
+            if (this.ipAddr.get(key)>maximum)
+                maximum=this.ipAddr.get(key);
+        }
+        return maximum;
+    }
+    public String peakActivity(){
+        int[] time = new int[2];
+        int maximum = 0;
+        int sec = 0;
+        for (Integer i: this.second.keySet()) {
+            if (this.second.get(i) > maximum) {
+                maximum = this.second.get(i);
+                sec = i;
+            }
+        }
+        time[0] = sec;
+        time[1] = maximum;
+        return Arrays.toString(time);
+    }
+    public HashSet<String> getDomensSet(){
+        return this.domens;
+    }
     public double getTrafficRate() {
         double hours = abs(24*(parseInt(this.maxTime.dateTime.get(0)) - parseInt(this.minTime.dateTime.get(0))) - (this.maxTime.time.get(0) - this.minTime.time.get(0)));
         return this.totalTraffic/hours;
@@ -320,6 +373,7 @@ public class Main
                 LogEntry LElement = new LogEntry(line);
                 LE.add(i, LElement);
                 stat.addEntry(LElement);
+
                 i++;
 
             }
@@ -327,7 +381,8 @@ public class Main
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.out.println(stat.countAverageFails());
+
+        System.out.println(stat.MaximumUnique());
 
     }
 }
